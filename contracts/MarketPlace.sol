@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.1;
 
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 import "hardhat/console.sol";
-import { Item, ItemCreated } from "./models/Item.sol";
+import { IItem } from "./models/Item.sol";
 
-contract MarketPlace is ReentrancyGuard {
+contract MarketPlace is IItem, ReentrancyGuard {
     using Counters for Counters.Counter;
 
     address payable owner;
@@ -22,7 +22,8 @@ contract MarketPlace is ReentrancyGuard {
     }
 
     mapping(uint256 => Item) private items;
-    mapping(address => uint256[]) private itemsListedBySellers; 
+    mapping(address => uint256) private number;
+
  
     uint256[] items_listed; 
 
@@ -33,7 +34,7 @@ contract MarketPlace is ReentrancyGuard {
     function createItem(
         address nftContract,
         uint256 tokenId,
-        uint256 price, 
+        uint256 price
     ) public payable nonReentrant {
         require(price > 0, "Price must be at least 1 wei");
         require(msg.value == listingPrice, "Price must be equal to listing price");
@@ -51,7 +52,6 @@ contract MarketPlace is ReentrancyGuard {
             false
         );
 
-        itemsListedBySellers[msg.sender].push(itemId);
         IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);
 
         emit ItemCreated(
@@ -76,40 +76,55 @@ contract MarketPlace is ReentrancyGuard {
         items[itemId].seller.transfer(msg.value);
         IERC721(nftContract).transferFrom(address(this), msg.sender, tokenId);
         items[itemId].owner = payable(msg.sender);
-        items[itemId].solder = true;
+        items[itemId].sold = true;
         _itemsSold.increment();
         payable(owner).transfer(listingPrice);
     }
 
-    function removeFromList( uint256 id, address user ) private onlyNFTOwner(id) {
-        delete itemsbyaddress[user][id];
-    }
+    // function editNFT(uint256 id, string memory name, uint256 price, string memory imageUrl, bool isListed) public onlyNFTOwner(id) {
+    //     items[id].name = name;
+    //     items[id].price = price;
+    //     items[id].imageUrl = imageUrl;
+    //     items[id].isListed = false;
 
-    //https://ipfs.infura.io/ipfs/Qmf6isejKuRVLxWyY1NpMudrGp97xo5NCtamynbKrssjBi
-
-
-    function editNFT(uint256 id, string memory name, uint256 price, string memory imageUrl, bool isListed) public onlyNFTOwner(id) {
-        items[id].name = name;
-        items[id].price = price;
-        items[id].imageUrl = imageUrl;
-        items[id].isListed = false;
-
-        if(isListed) {
-            require(price >= 0);
-            items[id].isListed = true;
-        }
-    }
+    //     if(isListed) {
+    //         require(price >= 0);
+    //         items[id].isListed = true;
+    //     }
+    // }
 
     function getAllItems() public view returns (Item[] memory) {
-        uint itemCount = _itemIds.current();
         uint unsoldItemCount = _itemIds.current() - _itemsSold.current();
-        uint index = 0;
 
-        Item[] memory itemsList = new Item[](unsoldItemCount);
+        Item[] memory itemsList = mapItemsToArray(address(0), unsoldItemCount);
+
+        return itemsList;
+    }
+
+    function getUserItems() public view returns (Item[] memory) {
+        uint itemCount = _itemIds.current();
+        uint userItemCount = 0;
         
-        for (uint i = 0; i < totalNFTs; i++)
+        for (uint i=0; i < itemCount; i++)
         {
-            if(items[i + 1].owner == address(0)) {
+            if(items[i + 1].owner == msg.sender) {
+                userItemCount++;
+            }
+        }
+
+        Item[] memory itemsList = mapItemsToArray(msg.sender, userItemCount);
+
+        return itemsList;
+    }
+
+    function mapItemsToArray(address addressToCheck, uint toMapCount) private view returns (Item[] memory) {
+        uint itemCount = _itemIds.current();
+        uint index = 0;
+        Item[] memory itemsList = new Item[](toMapCount);
+
+        for (uint i=0; i < itemCount; i++)
+        {
+            if(items[i + 1].owner == addressToCheck) {
                 uint id = items[i + 1].itemId;
                 Item storage item = items[id];
                 itemsList[index] = item;
@@ -120,25 +135,13 @@ contract MarketPlace is ReentrancyGuard {
         return itemsList;
     }
 
-    function getUserNFTList(address user) public view returns (Item[] memory) {
-        uint256[] memory useritems = itemsbyaddress[user];
-        nft[] memory nfts = new nft[](useritems.length+1);
-        
-        for ( uint i=0; i < useritems.length; i++)
-        {
-            nft storage item = items[i];
-            nfts[i] = item;
-        }
-        return (nfts);
-    }
-
     modifier notContractOwner() {
         require(msg.sender != owner);
         _;
     }
 
-    modifier onlyNFTOwner(uint256 id) {
-        require(msg.sender == items[id].currentOwner);
-        _;
-    }
+    // modifier onlyNFTOwner(uint256 id) {
+    //     require(msg.sender == items[id].currentOwner);
+    //     _;
+    // }
 }
