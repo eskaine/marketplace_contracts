@@ -65,24 +65,25 @@ contract MarketPlace is ReentrancyGuard {
         );
     }
 
+    function itemSale(
+        address nftContract,
+        uint256 itemId
+    ) public payable nonReentrant {
+        uint price = items[itemId].price;
+        uint tokenId = items[itemId].tokenId;
+        require(msg.value == price, "Price must match the asking price to complete the purchase");
+
+        items[itemId].seller.transfer(msg.value);
+        IERC721(nftContract).transferFrom(address(this), msg.sender, tokenId);
+        items[itemId].owner = payable(msg.sender);
+        items[itemId].solder = true;
+        _itemsSold.increment();
+        payable(owner).transfer(listingPrice);
+    }
+
     function removeFromList( uint256 id, address user ) private onlyNFTOwner(id) {
         delete itemsbyaddress[user][id];
     }
-
-    // function buyNFT( uint256 id ) public payable notContractOwner {
-    //     require( msg.value >= items[id].price );
-
-        
-    //     address payable sendTo = payable(items[id].currentOwner);
-    //     // send token's worth of ethers to the owner
-    //     sendTo.transfer(msg.value);
-
-    //     removeFromList(id, items[id].currentOwner);
-
-    //     //update to new owner of the nft
-    //     items[id].currentOwner = msg.sender;
-    //     itemsbyaddress[msg.sender].push( id );
-    // }
 
     //https://ipfs.infura.io/ipfs/Qmf6isejKuRVLxWyY1NpMudrGp97xo5NCtamynbKrssjBi
 
@@ -99,19 +100,27 @@ contract MarketPlace is ReentrancyGuard {
         }
     }
 
-    function getAllListedNFT() public view returns (nft[] memory) {
-        nft[] memory nfts = new nft[](_nftIds);
+    function getAllItems() public view returns (Item[] memory) {
+        uint itemCount = _itemIds.current();
+        uint unsoldItemCount = _itemIds.current() - _itemsSold.current();
+        uint index = 0;
+
+        Item[] memory itemsList = new Item[](unsoldItemCount);
         
         for (uint i = 0; i < totalNFTs; i++)
         {
-            nft storage item = items[i];
-            nfts[i] = item;
+            if(items[i + 1].owner == address(0)) {
+                uint id = items[i + 1].itemId;
+                Item storage item = items[id];
+                itemsList[index] = item;
+                index++;
+            }
         }
 
-        return nfts;
+        return itemsList;
     }
 
-    function getUserNFTList(address user) public view returns (nft[] memory) {
+    function getUserNFTList(address user) public view returns (Item[] memory) {
         uint256[] memory useritems = itemsbyaddress[user];
         nft[] memory nfts = new nft[](useritems.length+1);
         
