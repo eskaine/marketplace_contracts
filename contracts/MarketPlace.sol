@@ -22,20 +22,12 @@ contract MarketPlace is IItem, ReentrancyGuard {
     }
 
     mapping(uint256 => Item) private items;
-    mapping(address => uint256) private number;
-
- 
-    uint256[] items_listed; 
 
     function getListingPrice() public view returns (uint256) {
         return listingPrice;
     }
 
-    function createItem(
-        address nftContract,
-        uint256 tokenId,
-        uint256 price
-    ) public payable nonReentrant {
+    function createItem(address nftContract, uint256 tokenId, uint256 price) public payable nonReentrant {
         require(price > 0, "Price must be at least 1 wei");
         require(msg.value == listingPrice, "Price must be equal to listing price");
 
@@ -65,10 +57,7 @@ contract MarketPlace is IItem, ReentrancyGuard {
         );
     }
 
-    function itemSale(
-        address nftContract,
-        uint256 itemId
-    ) public payable nonReentrant {
+    function itemSale(address nftContract,  uint256 itemId) public payable nonReentrant {
         uint price = items[itemId].price;
         uint tokenId = items[itemId].tokenId;
         require(msg.value == price, "Price must match the asking price to complete the purchase");
@@ -96,7 +85,7 @@ contract MarketPlace is IItem, ReentrancyGuard {
     function getAllItems() public view returns (Item[] memory) {
         uint unsoldItemCount = _itemIds.current() - _itemsSold.current();
 
-        Item[] memory itemsList = mapItemsToArray(address(0), unsoldItemCount);
+        Item[] memory itemsList = mapItemsToArray(address(0), unsoldItemCount, 'owner');
 
         return itemsList;
     }
@@ -105,26 +94,48 @@ contract MarketPlace is IItem, ReentrancyGuard {
         uint itemCount = _itemIds.current();
         uint userItemCount = 0;
         
-        for (uint i=0; i < itemCount; i++)
-        {
+        for (uint i=0; i < itemCount; i++) {
             if(items[i + 1].owner == msg.sender) {
                 userItemCount++;
             }
         }
 
-        Item[] memory itemsList = mapItemsToArray(msg.sender, userItemCount);
+        Item[] memory itemsList = mapItemsToArray(msg.sender, userItemCount, 'owner');
 
         return itemsList;
     }
 
-    function mapItemsToArray(address addressToCheck, uint toMapCount) private view returns (Item[] memory) {
+    function getItemsCreated() public view returns (Item[] memory) {
+        uint itemCount = _itemIds.current();
+        uint userItemCount = 0;
+        
+        for (uint i=0; i < itemCount; i++) {
+            if(items[i + 1].seller == msg.sender) {
+                userItemCount++;
+            }
+        }
+
+        Item[] memory itemsList = mapItemsToArray(msg.sender, userItemCount, 'seller');
+
+        return itemsList;
+    }
+
+    function mapItemsToArray(address addressToCheck, uint toMapCount, bytes32 keyName) private view returns (Item[] memory) {
         uint itemCount = _itemIds.current();
         uint index = 0;
         Item[] memory itemsList = new Item[](toMapCount);
 
         for (uint i=0; i < itemCount; i++)
         {
-            if(items[i + 1].owner == addressToCheck) {
+            address itemAddress;
+
+            if(keyName == 'owner') {
+                itemAddress = items[i + 1].owner;
+            } else if(keyName == 'seller') {
+                itemAddress = items[i + 1].seller;
+            }
+
+            if(itemAddress == addressToCheck) {
                 uint id = items[i + 1].itemId;
                 Item storage item = items[id];
                 itemsList[index] = item;
