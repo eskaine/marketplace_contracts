@@ -1,26 +1,27 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "hardhat/console.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract MarketPlace {
-    address public owner;
-    uint256 private totalNFTs;
+import "hardhat/console.sol";
+import { Item, ItemCreated } from "./models/Item.sol";
+
+contract MarketPlace is ReentrancyGuard {
+    using Counters for Counters.Counter;
+
+    address payable owner;
+    Counters.Counter private _itemIds;
+    Counters.Counter private _itemsSold;
+
+    uint256 listingPrice = 0.025 ether;
 
     constructor() {
-        owner = msg.sender;
-    }
-    
-    struct nft {
-        uint256 id;
-        string name;
-        address currentOwner;
-        uint256 price;
-        string imageUrl;
-        bool isListed;
+        owner = payable(msg.sender);
     }
 
-    mapping(uint256 => nft) public items;
+    mapping(uint256 => Item) private items;
     mapping(address => uint256[]) private itemsbyaddress; 
  
     uint256[] items_listed; 
@@ -28,8 +29,9 @@ contract MarketPlace {
     function addNFT(string memory name, uint256 price, string memory imageUrl, bool isListed) public payable returns(uint256)  {
         require(msg.value > 0.01 ether);
 
-        totalNFTs++;
-        uint256 newItemId = totalNFTs;
+        _itemIds.increment();
+        uint256 newItemId = _itemIds.current();
+        
         
         nft memory newNFT = nft(
             newItemId, name, msg.sender, price, imageUrl, isListed
@@ -76,7 +78,7 @@ contract MarketPlace {
     }
 
     function getAllListedNFT() public view returns (nft[] memory) {
-        nft[] memory nfts = new nft[](totalNFTs);
+        nft[] memory nfts = new nft[](_nftIds);
         
         for (uint i = 0; i < totalNFTs; i++)
         {
