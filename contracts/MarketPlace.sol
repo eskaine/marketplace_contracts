@@ -22,25 +22,47 @@ contract MarketPlace is ReentrancyGuard {
     }
 
     mapping(uint256 => Item) private items;
-    mapping(address => uint256[]) private itemsbyaddress; 
+    mapping(address => uint256[]) private itemsListedBySellers; 
  
     uint256[] items_listed; 
 
-    function addNFT(string memory name, uint256 price, string memory imageUrl, bool isListed) public payable returns(uint256)  {
-        require(msg.value > 0.01 ether);
+    function getListingPrice() public view returns (uint256) {
+        return listingPrice;
+    }
+
+    function createItem(
+        address nftContract,
+        uint256 tokenId,
+        uint256 price, 
+    ) public payable nonReentrant {
+        require(price > 0, "Price must be at least 1 wei");
+        require(msg.value == listingPrice, "Price must be equal to listing price");
 
         _itemIds.increment();
-        uint256 newItemId = _itemIds.current();
-        
-        
-        nft memory newNFT = nft(
-            newItemId, name, msg.sender, price, imageUrl, isListed
+        uint256 itemId = _itemIds.current();
+                
+        items[itemId] = Item(
+            itemId, 
+            nftContract, 
+            tokenId, 
+            payable(msg.sender),
+            payable(address(0)),
+            price,
+            false
         );
-        
-        items[newItemId] = newNFT;
-        itemsbyaddress[msg.sender].push(newItemId);
 
-        return newItemId;
+        itemsListedBySellers[msg.sender].push(itemId);
+        IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);
+
+        emit ItemCreated(
+            itemId, 
+            nftContract, 
+            tokenId, 
+            msg.sender,
+            address(0),
+            price,
+            false
+        );
     }
 
     function removeFromList( uint256 id, address user ) private onlyNFTOwner(id) {
